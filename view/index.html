@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Filemoon</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.9.0/fonts/remixicon.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+  </head>
+
+  <body>
+    <div
+      class="bg-gray-100 min-h-screen flex justify-center items-center animate__animated animate__fadeIn">
+      <div
+        class="p-8 w-[450px] bg-white rounded-2xl flex flex-col items-center gap-6 shadow-xl animate__animated animate__fadeInUp">
+        <!-- Brand -->
+        <div class="flex flex-col items-center gap-1">
+          <div class="flex items-center gap-2">
+            <i class="ri-moon-cloudy-line text-5xl text-violet-600"></i>
+            <h1 class="text-3xl font-semibold">Filemoon</h1>
+          </div>
+          <p class="text-gray-500 text-sm">Welcome back</p>
+        </div>
+
+        <!-- Form -->
+        <form class="w-full space-y-5" onsubmit="login(event)">
+          <div class="space-y-1">
+            <label class="text-gray-700 text-sm block">Email</label>
+            <input
+              name="email"
+              class="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+              type="email"
+              placeholder="johndoe@email.com"
+              required />
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between items-center">
+              <label class="text-gray-700 text-sm block">Password</label>
+            </div>
+            <input
+              name="password"
+              class="w-full rounded-xl border border-gray-200 p-3 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+              type="password"
+              placeholder="Enter your password"
+              required />
+          </div>
+
+          <button
+            type="submit"
+            class="p-3 rounded-xl w-full bg-violet-600 text-white font-medium hover:bg-violet-700 active:scale-95 transition duration-200">
+            Sign In
+          </button>
+        </form>
+
+        <div class="flex items-center gap-2">
+          <p class="text-gray-500 text-sm">Don't have an account?</p>
+          <a href="/signup" class="text-violet-600 text-sm font-medium">Sign up</a>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/env.js"></script>
+    <script src="js/session.js"></script>
+    <script src="js/login.js"></script>
+
+  </body>
+</html>

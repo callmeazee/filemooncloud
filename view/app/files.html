@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Filemoon — My Files</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.9.0/fonts/remixicon.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' };</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <style>
+      #sidebar { transition: transform 0.4s ease, width 0.4s ease; }
+      #navbar  { transition: margin-left 0.4s ease; }
+      /* Drawer */
+      #drawer  { transition: right 0.4s ease; }
+    </style>
+  </head>
+
+  <body class="bg-zinc-50 dark:bg-zinc-950 font-sans overflow-x-hidden transition-colors duration-300">
+    <div class="relative min-h-screen">
+
+      <!-- Mobile overlay -->
+      <div id="sidebar-overlay" onclick="closeSidebar()"
+        class="fixed inset-0 z-40 bg-black/50 hidden md:hidden"></div>
+
+      <!-- ─── Sidebar ─────────────────────────────────────────────────────── -->
+      <aside id="sidebar"
+        class="fixed top-0 left-0 z-50 h-full overflow-hidden w-[250px]
+               bg-zinc-900 dark:bg-zinc-950 border-r border-white/5">
+        <div class="w-[250px] h-full flex flex-col justify-between">
+          <div>
+            <div class="border-b border-white/10 px-6 py-8 flex flex-col items-center">
+              <div class="w-20 h-20 rounded-full overflow-hidden border-4 border-white/10 cursor-pointer"
+                   onclick="uploadImage()">
+                <img id="profile-image" src="../images/avatar4.png"
+                     class="w-full h-full object-cover" alt="profile" />
+              </div>
+              <h1 class="mt-4 text-lg font-semibold text-white capitalize" id="fullname"></h1>
+              <p class="text-sm text-zinc-400 lowercase" id="email"></p>
+            </div>
+            <div class="px-4 py-6 space-y-2">
+              <a href="/dashboard" class="nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/5 hover:text-white transition-all duration-200">
+                <i class="ri-dashboard-fill text-lg"></i><span class="font-medium">Dashboard</span>
+              </a>
+              <a href="/file" class="nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/5 hover:text-white transition-all duration-200">
+                <i class="ri-file-4-fill text-lg"></i><span class="font-medium">My Files</span>
+              </a>
+              <a href="/history" class="nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/5 hover:text-white transition-all duration-200">
+                <i class="ri-history-fill text-lg"></i><span class="font-medium">History</span>
+              </a>
+            </div>
+          </div>
+          <div class="p-4">
+            <button onclick="logout()"
+              class="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 px-4 py-3 text-zinc-300 hover:bg-red-500 hover:text-white transition-all duration-300">
+              <i class="ri-logout-box-r-line"></i><span class="font-medium">Logout</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ─── Main ────────────────────────────────────────────────────────── -->
+      <section id="navbar" class="min-h-screen md:ml-[250px]">
+        <div class="p-4 md:p-6">
+
+          <!-- Topbar -->
+          <nav class="mb-6 flex items-center justify-between rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 md:px-6 py-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <button onclick="toggleSidebar()"
+                class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all">
+                <i class="ri-menu-2-line text-lg text-zinc-700 dark:text-zinc-200"></i>
+              </button>
+              <div class="flex items-center gap-2">
+                <i class="ri-moon-cloudy-line text-3xl text-violet-600"></i>
+                <h1 class="text-xl font-semibold text-zinc-800 dark:text-white">Filemoon</h1>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="toggleDark()"
+                class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all" title="Toggle dark mode">
+                <i id="darkToggleIcon" class="ri-moon-line text-lg text-zinc-700 dark:text-zinc-200"></i>
+              </button>
+              <button onclick="logout()"
+                class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all">
+                <i class="ri-logout-box-r-line text-lg text-zinc-700 dark:text-zinc-200"></i>
+              </button>
+            </div>
+          </nav>
+
+          <!-- Files card -->
+          <div class="mt-4 rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 md:p-6 shadow-sm">
+            <div class="mb-5 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 class="text-xl font-semibold text-zinc-800 dark:text-white">My Files</h2>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">Your recently uploaded files</p>
+              </div>
+              <button onclick="toggleDrawer()"
+                class="rounded-2xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-all duration-200">
+                <i class="ri-upload-cloud-line mr-1"></i> Upload File
+              </button>
+            </div>
+
+            <!-- Responsive table wrapper -->
+            <div class="overflow-x-auto rounded-2xl border border-zinc-100 dark:border-zinc-800">
+              <table class="w-full min-w-[560px]">
+                <thead class="bg-zinc-50 dark:bg-zinc-800">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-600 dark:text-zinc-300">File Name</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-600 dark:text-zinc-300 hidden sm:table-cell">Type</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-600 dark:text-zinc-300 hidden sm:table-cell">Size</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-600 dark:text-zinc-300 hidden md:table-cell">Uploaded</th>
+                    <th class="px-4 py-3 text-left text-sm font-semibold text-zinc-600 dark:text-zinc-300">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="fileTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ─── Upload Drawer ───────────────────────────────────────────────── -->
+      <div id="drawer"
+        class="fixed top-0 right-0 h-full z-50 w-full sm:w-96 bg-white dark:bg-zinc-900 shadow-2xl border-l border-zinc-200 dark:border-zinc-800 p-6 space-y-6"
+        style="right: -100%">
+        <div class="flex justify-between items-center">
+          <h1 class="text-lg font-medium text-gray-700 dark:text-zinc-200">Upload a new file</h1>
+          <button onclick="toggleDrawer()" class="transition-all duration-200 hover:text-rose-600 dark:text-zinc-400">
+            <i class="ri-close-circle-fill text-xl"></i>
+          </button>
+        </div>
+        <div class="h-px bg-gray-100 dark:bg-zinc-800 -mx-6"></div>
+
+        <form class="space-y-5" onsubmit="uploadFile(event)">
+          <div class="flex flex-col gap-2">
+            <label class="text-gray-600 dark:text-zinc-300 font-medium">Filename</label>
+            <input name="filename" type="text" placeholder="Enter file name"
+              class="py-2.5 px-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-white outline-none focus:border-violet-500 transition" required />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-gray-600 dark:text-zinc-300 font-medium">Choose a file</label>
+            <input name="file" type="file"
+              class="py-2 px-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm" required />
+          </div>
+          <button type="submit" id="uploadBtn"
+            class="w-full py-2.5 px-6 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-all duration-200">
+            Upload Now
+          </button>
+          <div class="bg-gray-200 dark:bg-zinc-700 h-3 rounded-full overflow-hidden">
+            <div class="h-full bg-violet-500 rounded-full text-xs text-white flex items-center justify-center transition-all duration-300"
+                 style="width:0" id="progress"></div>
+          </div>
+        </form>
+      </div>
+
+    </div>
+
+    <script src="../js/env.js"></script>
+    <script src="../js/layout.js"></script>
+    <script src="../js/session.js"></script>
+    <script src="../js/files.js"></script>
+  </body>
+</html>

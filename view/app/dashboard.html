@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Filemoon — Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.9.0/fonts/remixicon.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Enable Tailwind dark mode via class strategy
+      tailwind.config = { darkMode: 'class' };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <style>
+      /* Smooth sidebar transition on mobile */
+      #sidebar { transition: transform 0.4s ease, width 0.4s ease; }
+      #navbar   { transition: margin-left 0.4s ease; }
+    </style>
+  </head>
+
+  <body class="bg-zinc-50 dark:bg-zinc-950 font-sans overflow-x-hidden transition-colors duration-300">
+
+    <div class="relative min-h-screen">
+
+      <!-- Mobile overlay -->
+      <div id="sidebar-overlay"
+        onclick="closeSidebar()"
+        class="fixed inset-0 z-40 bg-black/50 hidden md:hidden"></div>
+
+      <!-- ─── Sidebar ─────────────────────────────────────────────────────── -->
+      <aside id="sidebar"
+        class="fixed top-0 left-0 z-50 h-full overflow-hidden w-[250px]
+               bg-zinc-900 dark:bg-zinc-950 border-r border-white/5">
+        <div class="w-[250px] h-full flex flex-col justify-between">
+
+          <!-- Profile -->
+          <div>
+            <div class="border-b border-white/10 px-6 py-8 flex flex-col items-center">
+              <div class="w-20 h-20 rounded-full overflow-hidden border-4 border-white/10 cursor-pointer"
+                   onclick="uploadImage()">
+                <img id="profile-image" src="../images/avatar4.png"
+                     class="w-full h-full object-cover" alt="profile" />
+              </div>
+              <h1 class="mt-4 text-lg font-semibold text-white capitalize" id="fullname"></h1>
+              <p class="text-sm text-zinc-400 lowercase" id="email"></p>
+            </div>
+
+            <!-- Nav links -->
+            <div class="px-4 py-6 space-y-2">
+              <a href="/dashboard" class="nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/5 hover:text-white transition-all duration-200">
+                <i class="ri-dashboard-fill text-lg"></i><span class="font-medium">Dashboard</span>
+              </a>
+              <a href="/file" class="nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/5 hover:text-white transition-all duration-200">
+                <i class="ri-file-4-fill text-lg"></i><span class="font-medium">My Files</span>
+              </a>
+              <a href="/history" class="nav-link flex items-center gap-3 rounded-2xl px-4 py-3 text-zinc-400 hover:bg-white/5 hover:text-white transition-all duration-200">
+                <i class="ri-history-fill text-lg"></i><span class="font-medium">History</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Logout -->
+          <div class="p-4">
+            <button onclick="logout()"
+              class="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 px-4 py-3 text-zinc-300 hover:bg-red-500 hover:text-white transition-all duration-300">
+              <i class="ri-logout-box-r-line"></i>
+              <span class="font-medium">Logout</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+      <!-- ─── /Sidebar ────────────────────────────────────────────────────── -->
+
+      <!-- ─── Main content ────────────────────────────────────────────────── -->
+      <section id="navbar" class="min-h-screen md:ml-[250px]">
+        <div class="p-4 md:p-6">
+
+          <!-- Topbar -->
+          <nav class="mb-6 flex items-center justify-between rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 md:px-6 py-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <button onclick="toggleSidebar()"
+                class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all duration-200">
+                <i class="ri-menu-2-line text-lg text-zinc-700 dark:text-zinc-200"></i>
+              </button>
+              <div class="flex items-center gap-2">
+                <i class="ri-moon-cloudy-line text-3xl text-violet-600"></i>
+                <h1 class="text-xl font-semibold text-zinc-800 dark:text-white">Filemoon</h1>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <!-- Dark mode toggle -->
+              <button onclick="toggleDark()" id="darkToggleBtn"
+                class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all duration-200"
+                title="Toggle dark mode">
+                <i id="darkToggleIcon" class="ri-moon-line text-lg text-zinc-700 dark:text-zinc-200"></i>
+              </button>
+              <button onclick="logout()"
+                class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 px-3 py-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all duration-200">
+                <i class="ri-logout-box-r-line text-lg text-zinc-700 dark:text-zinc-200"></i>
+              </button>
+            </div>
+          </nav>
+
+          <!-- Heading -->
+          <div class="mb-6">
+            <h1 class="text-2xl md:text-3xl font-bold text-zinc-800 dark:text-white">Dashboard</h1>
+            <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Welcome back, manage your files and analytics.</p>
+          </div>
+
+          <!-- File type cards (injected by JS) -->
+          <div id="report-card" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
+
+          <!-- Recent panels -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- Recent Files -->
+            <div class="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm hover:shadow-md transition-all duration-300">
+              <p class="text-lg font-medium text-zinc-500 dark:text-zinc-400 border-b border-gray-100 dark:border-zinc-800 pb-4 mb-4">Recent Files</p>
+              <div class="space-y-4" id="recent-files-box"></div>
+            </div>
+
+            <!-- Recent Shared -->
+            <div class="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm hover:shadow-md transition-all duration-300">
+              <p class="text-lg font-medium text-zinc-500 dark:text-zinc-400 border-b border-gray-100 dark:border-zinc-800 pb-4 mb-4">Recent Shared</p>
+              <div class="space-y-4" id="recent-shared-box"></div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+      <!-- ─── /Main content ───────────────────────────────────────────────── -->
+
+    </div>
+
+    <script src="../js/env.js"></script>
+    <script src="../js/layout.js"></script>
+    <script src="../js/session.js"></script>
+    <script src="../js/dashboard.js"></script>
+  </body>
+</html>

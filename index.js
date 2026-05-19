@@ -1,0 +1,107 @@
+const dotenv = require("dotenv");
+dotenv.config();
+
+const mongoose = require("mongoose");
+mongoose
+  .connect(process.env.DB)
+  .then(() => console.log("db connected"))
+  .catch((err) => console.log("failed to connect:", err.message));
+
+const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const root = process.cwd();
+const cors = require("cors");
+const { v4: uniqueId } = require("uuid");
+const multer = require("multer");
+
+// ─── Ensure upload directory exists ───────────────────────────────────────────
+const uploadDir = path.join(root, "files");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, next) => {
+    next(null, uploadDir);
+  },
+  filename: (req, file, next) => {
+    const nameArr = file.originalname.split(".");
+    const ext = nameArr.pop();
+    const name = `${uniqueId()}.${ext}`;
+    next(null, name);
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 200 * 1000 * 1000, // 200 MB
+  },
+});
+
+const {
+  signUpController,
+  loginController,
+  updateImageController,
+  fetchProfilePicture,
+} = require("./controller/user.controller");
+const {
+  createFile,
+  fetchFile,
+  deleteFile,
+  downloadFile,
+} = require("./controller/file.controller");
+const { fetchDashboard } = require("./controller/dashboard.controller");
+const { verifyToken } = require("./controller/token.controller");
+const { shareFile, fetchShared, downloadShared } = require("./controller/share.controller");
+const AuthMiddleware = require("./middleware/auth.middleware");
+
+const app = express();
+
+// ─── Middleware (must be before routes) ───────────────────────────────────────
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static("view"));
+
+// ─── UI Routes ────────────────────────────────────────────────────────────────
+const getPath = (filename) => path.join(root, "view", filename);
+
+app.get("/share/:fileId", downloadShared);  // Public — no auth (used by email link)
+app.get("/signup", (req, res) => res.sendFile(getPath("signup.html")));
+app.get("/login",  (req, res) => res.sendFile(getPath("index.html")));
+app.get("/",       (req, res) => res.sendFile(getPath("index.html")));
+app.get("/dashboard", (req, res) => res.sendFile(getPath("app/dashboard.html")));
+app.get("/history",   (req, res) => res.sendFile(getPath("app/history.html")));
+app.get("/file",      (req, res) => res.sendFile(getPath("app/files.html")));
+
+// ─── API Routes ───────────────────────────────────────────────────────────────
+app.post("/api/signup", signUpController);
+app.post("/api/login",  loginController);
+app.post("/api/profile-picture", AuthMiddleware, upload.single("profilePic"), updateImageController);
+app.get("/api/profile-picture",  AuthMiddleware, fetchProfilePicture);
+
+app.post("/api/file", AuthMiddleware, upload.single("file"), createFile);
+app.get("/api/file",  AuthMiddleware, fetchFile);
+// NOTE: /api/file/download/:id MUST be registered before /api/file/:id
+// otherwise Express treats the word 'download' as the :id parameter
+app.get("/api/file/download/:id",  AuthMiddleware, downloadFile);
+app.delete("/api/file/:id",        AuthMiddleware, deleteFile);
+
+app.get("/api/dashboard", AuthMiddleware, fetchDashboard);
+app.post("/api/token/verify", verifyToken);
+app.post("/api/share", AuthMiddleware, shareFile);
+app.get("/api/share",  AuthMiddleware, fetchShared);
+
+// ─── 404 Handler ──────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({ message: "Endpoint not found" });
+});
+
+// ─── Start Server ─────────────────────────────────────────────────────────────
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server is listening on http://localhost:${PORT}`);
+  console.log(`On your network:         http://192.168.1.9:${PORT}`);
+});
