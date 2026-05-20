@@ -4,34 +4,28 @@ const nodemailer = require("nodemailer");
 const path       = require("path");
 
 // ─── Lazy transport factory ────────────────────────────────────────────────────
-// BUG FIX: createTransport() was called at module-load time, BEFORE dotenv had
-// populated process.env — so SMTP_EMAIL / SMTP_PASSWORD were always undefined.
-// Creating it lazily (inside the handler, on first use) guarantees the env vars
-// are already loaded.
 let _transport = null;
 const getTransport = () => {
   if (!_transport) {
     _transport = nodemailer.createTransport({
-      host: "smtp.gmail.com",
+      host: "smtp-relay.brevo.com",
       port: 587,
-      secure: false,          // use STARTTLS (not SSL on 465)
-      requireTLS: true,       // force TLS upgrade — mandatory for Gmail
+      secure: false,
       auth: {
-        user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_PASSWORD,
+        user: process.env.BREVO_EMAIL,
+        pass: process.env.BREVO_SMTP_KEY,
       },
       connectionTimeout: 15000,
       greetingTimeout:   15000,
       socketTimeout:     20000,
-      logger: false,
-      debug:  false,
     });
   }
   return _transport;
 };
 
-// Reset cached transport so the next call re-creates it with fresh env vars
 const resetTransport = () => { _transport = null; };
+
+
 
 
 // ─── Email template ───────────────────────────────────────────────────────────
