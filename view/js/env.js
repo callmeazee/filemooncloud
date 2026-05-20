@@ -1,1 +1,2 @@
-const SERVER= "http://localhost:8080"
+// Automatically uses the correct host whether running locally or on Render
+const SERVER = window.location.origin;
