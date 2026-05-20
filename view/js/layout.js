@@ -67,14 +67,7 @@ window.addEventListener("resize", () => {
 // ─── Nav active highlight ─────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   const links = document.querySelectorAll(".nav-link");
-
-  links.forEach((link) => {
-    const href = link.getAttribute("href").replace("./", "");
-    if (window.location.pathname === href || window.location.href.includes(href)) {
-      setActive(link);
-    }
-    link.addEventListener("click", function () { setActive(this); });
-  });
+  const currentPath = window.location.pathname;
 
   function setActive(activeLink) {
     links.forEach((link) => {
@@ -84,6 +77,15 @@ document.addEventListener("DOMContentLoaded", () => {
     activeLink.style.backgroundColor = "rgba(124, 58, 237, 0.2)";
     activeLink.style.color = "#a78bfa";
   }
+
+  // Exact pathname match — avoids substring false positives
+  links.forEach((link) => {
+    const href = link.getAttribute("href");
+    if (href === currentPath) {
+      setActive(link);
+    }
+    link.addEventListener("click", function () { setActive(this); });
+  });
 
   // Set initial sidebar state based on screen size
   const sidebar = document.getElementById("sidebar");
