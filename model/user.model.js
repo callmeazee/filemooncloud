@@ -3,7 +3,10 @@ const { Schema, model } = require("mongoose");
 
 const userSchema = new Schema({
   image: {
-    type: String,
+    type: String,   // Cloudinary secure_url (or legacy filename)
+  },
+  imagePublicId: {
+    type: String,   // Cloudinary public_id — used to delete old avatar on update
   },
   fullname: {
     type: String,

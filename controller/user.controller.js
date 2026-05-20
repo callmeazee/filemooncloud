@@ -1,31 +1,24 @@
 const UserModel = require("../model/user.model");
+const cloudinary = require("cloudinary").v2;
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const path = require('path');
+const jwt    = require('jsonwebtoken');
 
 // ─── Sign Up ──────────────────────────────────────────────────────────────────
 const signUpController = async (req, res) => {
   try {
-    // Destructure only expected fields — never pass raw req.body to .create()
     const { fullname, email, mobile, password } = req.body;
 
     if (!fullname || !email || !mobile || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Check for existing email/mobile before attempting to save
     const existingEmail  = await UserModel.findOne({ email: email.toLowerCase().trim() });
-    if (existingEmail) {
-      return res.status(409).json({ message: "Email already exists" });
-    }
+    if (existingEmail) return res.status(409).json({ message: "Email already exists" });
+
     const existingMobile = await UserModel.findOne({ mobile: mobile.trim() });
-    if (existingMobile) {
-      return res.status(409).json({ message: "Mobile number already exists" });
-    }
+    if (existingMobile) return res.status(409).json({ message: "Mobile number already exists" });
 
     await UserModel.create({ fullname, email, mobile, password });
-
-    // Never return the user document — it contains the hashed password
     return res.status(201).json({ message: "Account created successfully!" });
 
   } catch (err) {
@@ -37,7 +30,6 @@ const signUpController = async (req, res) => {
 const loginController = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
@@ -56,7 +48,6 @@ const loginController = async (req, res) => {
     };
 
     const token = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '7d' });
-
     return res.status(200).json({ message: "Signed in successfully", token });
 
   } catch (err) {
@@ -65,20 +56,31 @@ const loginController = async (req, res) => {
 };
 
 // ─── Update Profile Picture ───────────────────────────────────────────────────
+// req.file is populated by multer-storage-cloudinary:
+//   req.file.path     = Cloudinary secure_url
+//   req.file.filename = Cloudinary public_id
 const updateImageController = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "Image file required" });
+    if (!req.file) return res.status(400).json({ message: "Image file required" });
+
+    const newUrl      = req.file.path;       // Cloudinary secure URL
+    const newPublicId = req.file.filename;   // Cloudinary public_id
+
+    // Delete old avatar from Cloudinary (best-effort)
+    const existing = await UserModel.findById(req.user.id).select("imagePublicId");
+    if (existing && existing.imagePublicId) {
+      cloudinary.uploader.destroy(existing.imagePublicId, { resource_type: "image" }).catch(() => {});
     }
-    const { filename } = req.file;
+
     const user = await UserModel.findByIdAndUpdate(
       req.user.id,
-      { image: filename },
+      { image: newUrl, imagePublicId: newPublicId },
       { new: true }
     );
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    return res.status(200).json({ image: filename });
+    // Return the Cloudinary URL directly so the frontend can update the avatar immediately
+    return res.status(200).json({ image: newUrl });
 
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -86,18 +88,22 @@ const updateImageController = async (req, res) => {
 };
 
 // ─── Fetch Profile Picture ────────────────────────────────────────────────────
+// Now returns the Cloudinary URL as JSON instead of streaming the file from disk.
 const fetchProfilePicture = async (req, res) => {
   try {
     const user = await UserModel.findById(req.user.id).select('image');
-    // Return 204 (No Content) when no picture is set — avoids a red Axios error
-    // in the browser console since the frontend silently ignores this case anyway.
+
     if (!user || !user.image) {
-      return res.status(204).end();
+      return res.status(204).end(); // No picture set — frontend silently ignores 204
     }
-    const filePath = path.join(process.cwd(), 'files', user.image);
-    res.sendFile(filePath, (err) => {
-      if (err) res.status(404).json({ message: "Image not found" });
-    });
+
+    // If it's a Cloudinary URL (new), return it as JSON
+    if (user.image.startsWith("http")) {
+      return res.status(200).json({ image: user.image });
+    }
+
+    // Legacy: old records stored just the filename — return 204 (can't serve from disk on Render)
+    return res.status(204).end();
 
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -40,6 +40,21 @@ const upload = multer({
   limits: { fileSize: 200 * 1000 * 1000 }, // 200 MB hard cap
 });
 
+// ─── Separate uploader for profile pictures (images only, 5 MB cap) ───────────
+const avatarStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder:        "filemoon/avatars",
+    resource_type: "image",
+    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
+    transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }],
+  },
+});
+const profileUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1000 * 1000 }, // 5 MB for avatars
+});
+
 const {
   signUpController,
   loginController,
@@ -79,7 +94,7 @@ app.get("/file",      (req, res) => res.sendFile(getPath("app/files.html")));
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.post("/api/signup", signUpController);
 app.post("/api/login",  loginController);
-app.post("/api/profile-picture", AuthMiddleware, upload.single("profilePic"), updateImageController);
+app.post("/api/profile-picture", AuthMiddleware, profileUpload.single("profilePic"), updateImageController);
 app.get("/api/profile-picture",  AuthMiddleware, fetchProfilePicture);
 
 app.post("/api/file", AuthMiddleware, upload.single("file"), createFile);

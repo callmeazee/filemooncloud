@@ -249,7 +249,7 @@ const shareFile = async (id, e) => {
 };
 
 // ─── Profile Picture ──────────────────────────────────────────────────────────
-const uploadImage = () => {
+const uploadImage = async () => {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
@@ -260,9 +260,10 @@ const uploadImage = () => {
       if (!file) return;
       const formData = new FormData();
       formData.append("profilePic", file);
-      await axios.post("/api/profile-picture", formData, getToken());
+      const { data } = await axios.post("/api/profile-picture", formData, getToken());
       const pic = document.getElementById("profile-image");
-      pic.src = URL.createObjectURL(file);
+      if (data.image) pic.src = data.image;
+      getToast().success("Profile picture updated!");
     } catch (err) {
       getToast().error(err.response ? err.response.data.message : err.message);
     }
@@ -271,13 +272,12 @@ const uploadImage = () => {
 
 const fetchProfilePicture = async () => {
   try {
-    const { data } = await axios.get("/api/profile-picture", {
-      responseType: "blob",
-      ...getToken(),
-    });
-    const pic = document.getElementById("profile-image");
-    pic.src = URL.createObjectURL(data);
+    const { status, data } = await axios.get("/api/profile-picture", getToken());
+    if (status === 200 && data.image) {
+      const pic = document.getElementById("profile-image");
+      if (pic) pic.src = data.image;
+    }
   } catch {
-    // No profile picture set yet — silently ignore
+    // Silently ignore — user just has no profile picture yet
   }
 };
