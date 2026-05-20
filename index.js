@@ -18,10 +18,10 @@ const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 
 // ─── Cloudinary config ────────────────────────────────────────────────────────
+// CLOUDINARY_URL format: cloudinary://api_key:api_secret@cloud_name
+// The SDK reads this env var automatically — no manual config needed.
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_NAME,
-  api_key:    process.env.CLOUDINARY_KEY,
-  api_secret: process.env.CLOUDINARY_SECRET,
+  cloudinary_url: process.env.CLOUDINARY_URL,
 });
 
 // ─── Multer: store in memory, controllers upload buffer to Cloudinary ─────────
