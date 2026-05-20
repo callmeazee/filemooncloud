@@ -14,28 +14,27 @@ const fileSchema = new Schema(
       lowercase: true,
       required: true,
     },
-    // Stores only the UUID filename (e.g. "abc123.pdf"), NOT the full path.
-    // Full path is always reconstructed at read-time via path.join(cwd, 'files', storedName).
-    storedName: {
-      type: String,
-      trim: true,
-      required: true,
-    },
     type: {
       type: String,
       trim: true,
       lowercase: true,
       required: true,
     },
-    // Note: `trim` is a String-only validator; removed from Number field
     size: {
       type: Number,
       required: true,
     },
+
+    // ── Cloudinary storage (new uploads) ──────────────────────────────────────
+    cloudinaryId:  { type: String },   // public_id  → used for deletion
+    cloudinaryUrl: { type: String },   // secure_url → used for download
+
+    // ── Legacy disk storage (backward compat for old records) ─────────────────
+    storedName: { type: String },      // UUID filename only  e.g. "abc123.pdf"
+    path:       { type: String },      // old full-relative path e.g. "files/abc.pdf"
   },
   { timestamps: true },
 );
 
 const FileModel = model("File", fileSchema);
-
 module.exports = FileModel;

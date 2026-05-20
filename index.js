@@ -15,29 +15,29 @@ const cors = require("cors");
 const { v4: uniqueId } = require("uuid");
 const multer = require("multer");
 
-// ─── Ensure upload directory exists ───────────────────────────────────────────
-const uploadDir = path.join(root, "files");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
-const storage = multer.diskStorage({
-  destination: (req, file, next) => {
-    next(null, uploadDir);
-  },
-  filename: (req, file, next) => {
-    const nameArr = file.originalname.split(".");
-    const ext = nameArr.pop();
-    const name = `${uniqueId()}.${ext}`;
-    next(null, name);
+// ─── Cloudinary config ────────────────────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key:    process.env.CLOUDINARY_KEY,
+  api_secret: process.env.CLOUDINARY_SECRET,
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder:        "filemoon",
+    resource_type: "auto",   // handles images, videos, raw files
+    use_filename:  false,    // use Cloudinary's generated public_id
+    unique_filename: true,
   },
 });
 
 const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 200 * 1000 * 1000, // 200 MB
-  },
+  storage,
+  limits: { fileSize: 200 * 1000 * 1000 }, // 200 MB hard cap
 });
 
 const {

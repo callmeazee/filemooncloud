@@ -181,30 +181,31 @@ const shareFile = async (req, res) => {
 };
 
 // ─── Public shared-file download (no auth required) ───────────────────────────
-// This is the endpoint the email link points to.
 const downloadShared = async (req, res) => {
   try {
     const { fileId } = req.params;
 
-    // Only serve files that have actually been shared (exist in ShareModel)
     const share = await ShareModel.findOne({ file: fileId }).populate("file");
     if (!share || !share.file) {
       return res.status(404).json({ message: "Shared file not found or link is invalid" });
     }
 
-    const file     = share.file;
-    const ext      = file.type.split("/").pop();
+    const file = share.file;
 
-    // Backward-compatible: old docs use `path` field, new docs use `storedName`
+    // ── Cloudinary (new records) ──────────────────────────────────────────────
+    if (file.cloudinaryUrl) {
+      // Insert fl_attachment so browser downloads instead of previewing
+      const downloadUrl = file.cloudinaryUrl.replace("/upload/", "/upload/fl_attachment/");
+      return res.redirect(downloadUrl);
+    }
+
+    // ── Legacy: serve from disk (old records before Cloudinary migration) ─────
+    const ext      = file.type.split("/").pop();
     const diskPath = file.storedName
       ? path.join(process.cwd(), "files", file.storedName)
       : path.join(process.cwd(), file.path);
 
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${file.filename}.${ext}"`
-    );
-
+    res.setHeader("Content-Disposition", `attachment; filename="${file.filename}.${ext}"`);
     res.sendFile(diskPath, (err) => {
       if (err) res.status(404).json({ message: "File not found on server" });
     });

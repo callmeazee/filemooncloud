@@ -1,47 +1,49 @@
 const FileModel = require("../model/files.model");
+const cloudinary = require("cloudinary").v2;
 const fs   = require("fs");
 const path = require("path");
 
-// Returns a normalised MIME type string
-const getType = (mimetype) => {
-  const ext = mimetype.split("/").pop();
-  if (ext === "X-msdownload") return "application/exe";
-  return mimetype;
+// ─── Cloudinary URL → forced download URL ─────────────────────────────────────
+// Inserts fl_attachment transformation so the browser downloads instead of previewing.
+const toDownloadUrl = (url) => url.replace("/upload/", "/upload/fl_attachment/");
+
+// ─── Backward-compatible resolver for LEGACY disk records ────────────────────
+// Old records: { path: "files/uuid.ext" } or { storedName: "uuid.ext" }
+const getDiskPath = (file) => {
+  if (file.storedName) return path.join(process.cwd(), "files", file.storedName);
+  return path.join(process.cwd(), file.path);
 };
 
-// ─── Backward-compatible path resolver ───────────────────────────────────────
-// Files uploaded BEFORE the audit have: { path: "files/uuid.ext" }   (full relative path)
-// Files uploaded AFTER  the audit have: { storedName: "uuid.ext" }   (filename only)
-// This helper handles both so downloads work for ALL existing records.
-const getFilePath = (file) => {
-  if (file.storedName) {
-    return path.join(process.cwd(), "files", file.storedName);
-  }
-  // Legacy: file.path was stored as "files/uuid.ext" relative to cwd
-  return path.join(process.cwd(), file.path);
+// Returns a normalised MIME type string
+const getType = (mimetype) => {
+  if (mimetype === "application/X-msdownload") return "application/exe";
+  return mimetype;
 };
 
 // ─── Create File ──────────────────────────────────────────────────────────────
 const createFile = async (req, res) => {
   try {
     const file = req.file;
-    if (!file) {
-      return res.status(400).json({ message: "File required" });
-    }
+    if (!file) return res.status(400).json({ message: "File required" });
 
     const { filename } = req.body;
     if (!filename || !filename.trim()) {
-      // Clean up uploaded file if no name provided
-      fs.unlink(file.path, () => {});
+      // If uploaded to Cloudinary, clean it up
+      if (file.filename) {
+        cloudinary.uploader.destroy(file.filename, { resource_type: "raw" }).catch(() => {});
+        cloudinary.uploader.destroy(file.filename, { resource_type: "image" }).catch(() => {});
+      }
       return res.status(400).json({ message: "Filename is required" });
     }
 
     const payload = {
-      storedName: file.filename,          // UUID filename only, not the full path
-      filename:   filename.trim(),
-      type:       getType(file.mimetype),
-      size:       file.size,
-      user:       req.user.id,
+      filename:      filename.trim(),
+      type:          getType(file.mimetype),
+      size:          file.size,
+      user:          req.user.id,
+      // Cloudinary fields (set by multer-storage-cloudinary)
+      cloudinaryId:  file.filename,   // public_id
+      cloudinaryUrl: file.path,       // secure_url
     };
 
     const newFile = await FileModel.create(payload);
@@ -55,63 +57,63 @@ const createFile = async (req, res) => {
 // ─── Fetch Files ──────────────────────────────────────────────────────────────
 const fetchFile = async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit, 10) || 0;   // 0 = no limit in Mongoose
+    const limit = parseInt(req.query.limit, 10) || 0;
     const files = await FileModel
       .find({ user: req.user.id })
       .sort({ createdAt: -1 })
       .limit(limit);
     res.status(200).json(files);
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
 // ─── Delete File ──────────────────────────────────────────────────────────────
-// FIX: use findOneAndDelete (not findByIdAndDelete) so the `user` filter is honoured.
-// findByIdAndDelete ignores extra fields — this was an authorization bypass.
 const deleteFile = async (req, res) => {
   try {
     const { id } = req.params;
     const file = await FileModel.findOneAndDelete({ _id: id, user: req.user.id });
-
     if (!file) return res.status(404).json({ message: "File not found" });
 
-    // Remove from disk; don't throw if already missing
-    const filePath = getFilePath(file);
-    fs.unlink(filePath, (err) => {
-      if (err && err.code !== "ENOENT") {
-        console.error("Failed to delete file from disk:", err.message);
-      }
-    });
+    if (file.cloudinaryId) {
+      // Try both resource types (Cloudinary auto-detects on upload)
+      await Promise.allSettled([
+        cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: "raw" }),
+        cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: "image" }),
+        cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: "video" }),
+      ]);
+    } else {
+      // Legacy: remove from disk
+      const filePath = getDiskPath(file);
+      fs.unlink(filePath, (err) => {
+        if (err && err.code !== "ENOENT") console.error("Disk unlink failed:", err.message);
+      });
+    }
 
     res.status(200).json(file);
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
 // ─── Download File ────────────────────────────────────────────────────────────
-// FIX: use findOne (not findById) so the `user` filter is honoured.
-// findById ignores extra fields — this was an authorization bypass.
 const downloadFile = async (req, res) => {
   try {
     const { id } = req.params;
     const file = await FileModel.findOne({ _id: id, user: req.user.id });
-
     if (!file) return res.status(404).json({ message: "File not found" });
 
+    if (file.cloudinaryUrl) {
+      // Cloudinary: redirect to a forced-download URL
+      return res.redirect(toDownloadUrl(file.cloudinaryUrl));
+    }
+
+    // Legacy: serve from disk
     const ext      = file.type.split("/").pop();
-    const filePath = getFilePath(file);
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${file.filename}.${ext}"`
-    );
-
+    const filePath = getDiskPath(file);
+    res.setHeader("Content-Disposition", `attachment; filename="${file.filename}.${ext}"`);
     res.sendFile(filePath, (err) => {
-      if (err) res.status(404).json({ message: "Failed to download file" });
+      if (err) res.status(404).json({ message: "File not found on disk" });
     });
 
   } catch (err) {
