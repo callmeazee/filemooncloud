@@ -12,15 +12,19 @@ let _transport = null;
 const getTransport = () => {
   if (!_transport) {
     _transport = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,          // use STARTTLS (not SSL on 465)
+      requireTLS: true,       // force TLS upgrade — mandatory for Gmail
       auth: {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
       },
-      // Fail fast — don't hang forever if Gmail is unreachable
-      connectionTimeout: 10000,   // 10 s to establish TCP connection
-      greetingTimeout:   10000,   // 10 s for SMTP greeting
-      socketTimeout:     15000,   // 15 s of inactivity before abort
+      connectionTimeout: 15000,
+      greetingTimeout:   15000,
+      socketTimeout:     20000,
+      logger: false,
+      debug:  false,
     });
   }
   return _transport;
@@ -162,13 +166,16 @@ const shareFile = async (req, res) => {
     res.status(200).json({ message: "File shared successfully!" });
 
   } catch (err) {
-    // Reset cached transport — a failed connection should not block future attempts
-    resetTransport();
-    const message = err.code === "EAUTH"
-      ? "Gmail authentication failed — check SMTP_EMAIL and SMTP_PASSWORD in Render environment variables"
-      : err.code === "ECONNECTION" || err.code === "ETIMEDOUT" || err.code === "ESOCKET"
-      ? "Could not connect to Gmail SMTP — check your SMTP credentials in Render environment variables"
-      : err.message;
+    resetTransport(); // always reset so next attempt gets a fresh connection
+    console.error("[share] SMTP error:", err.code, err.message);
+
+    let message;
+    if (err.code === "EAUTH")          message = "Gmail authentication failed — verify SMTP_EMAIL and SMTP_PASSWORD in Render env vars";
+    else if (err.code === "ECONNECTION") message = "Cannot reach smtp.gmail.com — check Render network settings";
+    else if (err.code === "ETIMEDOUT")   message = "Gmail SMTP timed out — try again in a moment";
+    else if (err.code === "ESOCKET")     message = "SMTP socket error — Gmail may have rejected the connection";
+    else                                 message = `Email error [${err.code || "UNKNOWN"}]: ${err.message}`;
+
     res.status(500).json({ message });
   }
 };
