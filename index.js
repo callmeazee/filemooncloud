@@ -18,18 +18,28 @@ const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 
 // ─── Cloudinary config ────────────────────────────────────────────────────────
-// Parse CLOUDINARY_URL manually — cloudinary_url is NOT a valid SDK config key.
-// Format: cloudinary://api_key:api_secret@cloud_name
+// Supports two setups:
+//   1. Single var:  CLOUDINARY_URL = cloudinary://api_key:api_secret@cloud_name
+//   2. Three vars:  CLOUDINARY_NAME, CLOUDINARY_KEY, CLOUDINARY_SECRET
 (function () {
   const url = process.env.CLOUDINARY_URL || "";
-  const m = url.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+  const m   = url.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+
   if (m) {
     cloudinary.config({ api_key: m[1], api_secret: m[2], cloud_name: m[3] });
-    console.log("Cloudinary: configured for cloud", m[3]);
+    console.log("Cloudinary: configured via CLOUDINARY_URL → cloud:", m[3]);
+  } else if (process.env.CLOUDINARY_NAME && process.env.CLOUDINARY_KEY && process.env.CLOUDINARY_SECRET) {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_NAME,
+      api_key:    process.env.CLOUDINARY_KEY,
+      api_secret: process.env.CLOUDINARY_SECRET,
+    });
+    console.log("Cloudinary: configured via separate vars → cloud:", process.env.CLOUDINARY_NAME);
   } else {
-    console.warn("Cloudinary: CLOUDINARY_URL missing or invalid");
+    console.warn("Cloudinary: no valid credentials found — uploads will fail");
   }
 })();
+
 
 // ─── Multer: store in memory, controllers upload buffer to Cloudinary ─────────
 // Using memoryStorage avoids the multer-storage-cloudinary v4 ↔ cloudinary v2
