@@ -102,6 +102,8 @@ app.use((req, res) => {
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is listening on http://localhost:${PORT}`);
-  console.log(`On your network:         http://192.168.1.9:${PORT}`);
+  console.log(`Server is listening on port ${PORT}`);
+  console.log(`DB: ${process.env.DB ? "configured ✓" : "MISSING ✗"}`);
+  console.log(`SMTP: ${process.env.SMTP_EMAIL ? process.env.SMTP_EMAIL + " ✓" : "MISSING ✗"}`);
+  console.log(`DOMAIN: ${process.env.DOMAIN || "not set"}`);
 });
