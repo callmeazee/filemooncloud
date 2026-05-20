@@ -1,29 +1,32 @@
 const ShareModel = require("../model/share.model");
 const FileModel  = require("../model/files.model");
-const nodemailer = require("nodemailer");
+const axios      = require("axios");
 const path       = require("path");
 
-// ─── Lazy transport factory ────────────────────────────────────────────────────
-let _transport = null;
-const getTransport = () => {
-  if (!_transport) {
-    _transport = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.BREVO_EMAIL,
-        pass: process.env.BREVO_SMTP_KEY,
+// ─── Send email via Brevo HTTP API (no SMTP — works on all cloud platforms) ───
+// SMTP ports (587/465) are frequently blocked by cloud providers.
+// Brevo's REST API uses plain HTTPS — never blocked.
+const sendEmail = async ({ to, subject, html }) => {
+  const response = await axios.post(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      sender:      { name: "Filemoon", email: process.env.BREVO_EMAIL },
+      to:          [{ email: to }],
+      subject,
+      htmlContent: html,
+    },
+    {
+      headers: {
+        "api-key":      process.env.BREVO_API_KEY,
+        "Content-Type": "application/json",
       },
-      connectionTimeout: 15000,
-      greetingTimeout:   15000,
-      socketTimeout:     20000,
-    });
-  }
-  return _transport;
+      timeout: 15000,
+    }
+  );
+  return response.data;
 };
 
-const resetTransport = () => { _transport = null; };
+
 
 
 
@@ -111,66 +114,31 @@ const getEmailTemplate = (link, filename) => {
 const shareFile = async (req, res) => {
   try {
     const { email, fileId } = req.body;
-
     if (!email || !fileId) {
       return res.status(400).json({ message: "Email and fileId are required" });
     }
 
-    // Guard: catch missing / still-placeholder SMTP credentials early
-    if (
-      !process.env.SMTP_EMAIL ||
-      !process.env.SMTP_PASSWORD ||
-      process.env.SMTP_EMAIL.includes("your_gmail") ||
-      process.env.SMTP_PASSWORD.includes("your_gmail")
-    ) {
-      return res.status(500).json({
-        message:
-          "SMTP not configured — add your Gmail address and App Password to .env (Filemoon-v2-main/.env, NOT the parent folder)",
-      });
-    }
-
-    // Verify the file belongs to the requesting user
     const file = await FileModel.findOne({ _id: fileId, user: req.user.id });
-    if (!file) {
-      return res.status(404).json({ message: "File not found" });
-    }
+    if (!file) return res.status(404).json({ message: "File not found" });
 
-    // BUG FIX: Use the PUBLIC /share/:fileId route so recipients don't need a JWT
     const link = `${process.env.DOMAIN}/share/${fileId}`;
 
-    const mailOptions = {
-      from: process.env.SMTP_EMAIL,
-      to: email,
-      subject: "Filemoon — Someone shared a file with you",
-      html: getEmailTemplate(link, file.filename),
-    };
-
-    const payload = {
-      user:          req.user.id,
-      receiverEmail: email,
-      file:          fileId,
-    };
-
-    // Send email and save share record in parallel
+    // Send email + save share record in parallel
     await Promise.all([
-      getTransport().sendMail(mailOptions),
-      ShareModel.create(payload),
+      sendEmail({
+        to:      email,
+        subject: "Filemoon — Someone shared a file with you",
+        html:    getEmailTemplate(link, file.filename),
+      }),
+      ShareModel.create({ user: req.user.id, receiverEmail: email, file: fileId }),
     ]);
 
     res.status(200).json({ message: "File shared successfully!" });
 
   } catch (err) {
-    resetTransport(); // always reset so next attempt gets a fresh connection
-    console.error("[share] SMTP error:", err.code, err.message);
-
-    let message;
-    if (err.code === "EAUTH")          message = "Gmail authentication failed — verify SMTP_EMAIL and SMTP_PASSWORD in Render env vars";
-    else if (err.code === "ECONNECTION") message = "Cannot reach smtp.gmail.com — check Render network settings";
-    else if (err.code === "ETIMEDOUT")   message = "Gmail SMTP timed out — try again in a moment";
-    else if (err.code === "ESOCKET")     message = "SMTP socket error — Gmail may have rejected the connection";
-    else                                 message = `Email error [${err.code || "UNKNOWN"}]: ${err.message}`;
-
-    res.status(500).json({ message });
+    const detail = err.response?.data || err.message;
+    console.error("[share] Brevo API error:", JSON.stringify(detail));
+    res.status(500).json({ message: `Email failed: ${typeof detail === "string" ? detail : JSON.stringify(detail)}` });
   }
 };
 
