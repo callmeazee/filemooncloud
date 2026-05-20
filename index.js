@@ -42,16 +42,16 @@ const cloudinary = require("cloudinary").v2;
 
 
 // ─── Multer: store in memory, controllers upload buffer to Cloudinary ─────────
-// Using memoryStorage avoids the multer-storage-cloudinary v4 ↔ cloudinary v2
-// streaming incompatibility that causes "File too large" on valid files.
+// Render free tier = 512 MB RAM. Files pass through memory → Cloudinary.
+// 25 MB per file keeps multiple concurrent uploads safe.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 200 * 1000 * 1000 }, // 200 MB hard cap
+  limits:  { fileSize: 25 * 1024 * 1024 },  // 25 MB
 });
 
 const profileUpload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 5 * 1000 * 1000 },   // 5 MB for avatars
+  limits:  { fileSize: 2 * 1024 * 1024 },   // 2 MB for avatars
 });
 
 

@@ -62,8 +62,10 @@ const uploadFile = async (e) => {
     if (!file || file.size === 0) {
       return getToast().error("Please choose a file to upload.");
     }
-    if (file.size > 200 * 1000 * 1000) {
-      return getToast().error("File too large — max 200 MB allowed.");
+    // 25 MB limit — Render free tier has 512 MB RAM; files pass through memory before Cloudinary
+    const MAX_FILE_MB = 25;
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      return getToast().error(`File too large — maximum ${MAX_FILE_MB} MB allowed on this plan.`);
     }
 
     uploadBtn.disabled = true;
@@ -258,6 +260,10 @@ const uploadImage = async () => {
     try {
       const file = input.files[0];
       if (!file) return;
+      // 2 MB limit for profile pictures
+      if (file.size > 2 * 1024 * 1024) {
+        return getToast().error("Profile picture too large — maximum 2 MB allowed.");
+      }
       const formData = new FormData();
       formData.append("profilePic", file);
       const { data } = await axios.post("/api/profile-picture", formData, getToken());
