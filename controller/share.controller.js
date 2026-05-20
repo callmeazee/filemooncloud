@@ -17,10 +17,18 @@ const getTransport = () => {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
       },
+      // Fail fast — don't hang forever if Gmail is unreachable
+      connectionTimeout: 10000,   // 10 s to establish TCP connection
+      greetingTimeout:   10000,   // 10 s for SMTP greeting
+      socketTimeout:     15000,   // 15 s of inactivity before abort
     });
   }
   return _transport;
 };
+
+// Reset cached transport so the next call re-creates it with fresh env vars
+const resetTransport = () => { _transport = null; };
+
 
 // ─── Email template ───────────────────────────────────────────────────────────
 const getEmailTemplate = (link, filename) => {
@@ -154,9 +162,12 @@ const shareFile = async (req, res) => {
     res.status(200).json({ message: "File shared successfully!" });
 
   } catch (err) {
-    // Give a clearer error if SMTP credentials are wrong
+    // Reset cached transport — a failed connection should not block future attempts
+    resetTransport();
     const message = err.code === "EAUTH"
-      ? "Gmail authentication failed — check SMTP_EMAIL and SMTP_PASSWORD in .env"
+      ? "Gmail authentication failed — check SMTP_EMAIL and SMTP_PASSWORD in Render environment variables"
+      : err.code === "ECONNECTION" || err.code === "ETIMEDOUT" || err.code === "ESOCKET"
+      ? "Could not connect to Gmail SMTP — check your SMTP credentials in Render environment variables"
       : err.message;
     res.status(500).json({ message });
   }
