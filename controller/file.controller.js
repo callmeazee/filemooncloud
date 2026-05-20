@@ -1,24 +1,26 @@
 const FileModel = require("../model/files.model");
 const cloudinary = require("cloudinary").v2;
-const fs   = require("fs");
-const path = require("path");
-
-// ─── Cloudinary URL → forced download URL ─────────────────────────────────────
-// Inserts fl_attachment transformation so the browser downloads instead of previewing.
-const toDownloadUrl = (url) => url.replace("/upload/", "/upload/fl_attachment/");
-
-// ─── Backward-compatible resolver for LEGACY disk records ────────────────────
-// Old records: { path: "files/uuid.ext" } or { storedName: "uuid.ext" }
-const getDiskPath = (file) => {
-  if (file.storedName) return path.join(process.cwd(), "files", file.storedName);
-  return path.join(process.cwd(), file.path);
-};
 
 // Returns a normalised MIME type string
 const getType = (mimetype) => {
   if (mimetype === "application/X-msdownload") return "application/exe";
   return mimetype;
 };
+
+// ─── Cloudinary upload helper (buffer → cloud) ────────────────────────────────
+// multer.memoryStorage() puts the file in req.file.buffer.
+// We stream that buffer directly to Cloudinary — no disk involved.
+const uploadToCloudinary = (buffer, options) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+    stream.end(buffer);
+  });
+
+// ─── Cloudinary URL → forced-download URL ────────────────────────────────────
+const toDownloadUrl = (url) => url.replace("/upload/", "/upload/fl_attachment/");
 
 // ─── Create File ──────────────────────────────────────────────────────────────
 const createFile = async (req, res) => {
@@ -28,28 +30,30 @@ const createFile = async (req, res) => {
 
     const { filename } = req.body;
     if (!filename || !filename.trim()) {
-      // If uploaded to Cloudinary, clean it up
-      if (file.filename) {
-        cloudinary.uploader.destroy(file.filename, { resource_type: "raw" }).catch(() => {});
-        cloudinary.uploader.destroy(file.filename, { resource_type: "image" }).catch(() => {});
-      }
       return res.status(400).json({ message: "Filename is required" });
     }
+
+    // Upload buffer to Cloudinary
+    const result = await uploadToCloudinary(file.buffer, {
+      folder:        "filemoon",
+      resource_type: "auto",     // handles any file type
+      use_filename:  false,
+    });
 
     const payload = {
       filename:      filename.trim(),
       type:          getType(file.mimetype),
       size:          file.size,
       user:          req.user.id,
-      // Cloudinary fields (set by multer-storage-cloudinary)
-      cloudinaryId:  file.filename,   // public_id
-      cloudinaryUrl: file.path,       // secure_url
+      cloudinaryId:  result.public_id,
+      cloudinaryUrl: result.secure_url,
     };
 
     const newFile = await FileModel.create(payload);
     res.status(201).json(newFile);
 
   } catch (err) {
+    console.error("[createFile] Cloudinary error:", err.message, err.http_code || "");
     res.status(500).json({ message: err.message });
   }
 };
@@ -76,18 +80,12 @@ const deleteFile = async (req, res) => {
     if (!file) return res.status(404).json({ message: "File not found" });
 
     if (file.cloudinaryId) {
-      // Try both resource types (Cloudinary auto-detects on upload)
+      // Try all resource types (Cloudinary stores under the detected type)
       await Promise.allSettled([
         cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: "raw" }),
         cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: "image" }),
         cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: "video" }),
       ]);
-    } else {
-      // Legacy: remove from disk
-      const filePath = getDiskPath(file);
-      fs.unlink(filePath, (err) => {
-        if (err && err.code !== "ENOENT") console.error("Disk unlink failed:", err.message);
-      });
     }
 
     res.status(200).json(file);
@@ -104,13 +102,15 @@ const downloadFile = async (req, res) => {
     if (!file) return res.status(404).json({ message: "File not found" });
 
     if (file.cloudinaryUrl) {
-      // Cloudinary: redirect to a forced-download URL
       return res.redirect(toDownloadUrl(file.cloudinaryUrl));
     }
 
-    // Legacy: serve from disk
+    // Legacy disk records
+    const path     = require("path");
     const ext      = file.type.split("/").pop();
-    const filePath = getDiskPath(file);
+    const filePath = file.storedName
+      ? path.join(process.cwd(), "files", file.storedName)
+      : path.join(process.cwd(), file.path);
     res.setHeader("Content-Disposition", `attachment; filename="${file.filename}.${ext}"`);
     res.sendFile(filePath, (err) => {
       if (err) res.status(404).json({ message: "File not found on disk" });

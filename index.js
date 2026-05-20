@@ -16,7 +16,6 @@ const { v4: uniqueId } = require("uuid");
 const multer = require("multer");
 
 const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 // ─── Cloudinary config ────────────────────────────────────────────────────────
 cloudinary.config({
@@ -25,35 +24,19 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_SECRET,
 });
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder:        "filemoon",
-    resource_type: "auto",   // handles images, videos, raw files
-    use_filename:  false,    // use Cloudinary's generated public_id
-    unique_filename: true,
-  },
-});
-
+// ─── Multer: store in memory, controllers upload buffer to Cloudinary ─────────
+// Using memoryStorage avoids the multer-storage-cloudinary v4 ↔ cloudinary v2
+// streaming incompatibility that causes "File too large" on valid files.
 const upload = multer({
-  storage,
-  limits: { fileSize: 200 * 1000 * 1000 }, // 200 MB hard cap
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 200 * 1000 * 1000 }, // 200 MB hard cap
 });
 
-// ─── Separate uploader for profile pictures (images only, 5 MB cap) ───────────
-const avatarStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder:        "filemoon/avatars",
-    resource_type: "image",
-    allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-    transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }],
-  },
-});
 const profileUpload = multer({
-  storage: avatarStorage,
-  limits: { fileSize: 5 * 1000 * 1000 }, // 5 MB for avatars
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 5 * 1000 * 1000 },   // 5 MB for avatars
 });
+
 
 const {
   signUpController,
@@ -95,9 +78,7 @@ app.get("/file",      (req, res) => res.sendFile(getPath("app/files.html")));
 app.post("/api/signup", signUpController);
 app.post("/api/login",  loginController);
 app.post("/api/profile-picture", AuthMiddleware, profileUpload.single("profilePic"), updateImageController);
-app.get("/api/profile-picture",  AuthMiddleware, fetchProfilePicture);
-
-app.post("/api/file", AuthMiddleware, upload.single("file"), createFile);
+app.post("/api/file",            AuthMiddleware, upload.single("file"),              createFile);
 app.get("/api/file",  AuthMiddleware, fetchFile);
 // NOTE: /api/file/download/:id MUST be registered before /api/file/:id
 // otherwise Express treats the word 'download' as the :id parameter
