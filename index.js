@@ -18,11 +18,18 @@ const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 
 // ─── Cloudinary config ────────────────────────────────────────────────────────
-// CLOUDINARY_URL format: cloudinary://api_key:api_secret@cloud_name
-// The SDK reads this env var automatically — no manual config needed.
-cloudinary.config({
-  cloudinary_url: process.env.CLOUDINARY_URL,
-});
+// Parse CLOUDINARY_URL manually — cloudinary_url is NOT a valid SDK config key.
+// Format: cloudinary://api_key:api_secret@cloud_name
+(function () {
+  const url = process.env.CLOUDINARY_URL || "";
+  const m = url.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+  if (m) {
+    cloudinary.config({ api_key: m[1], api_secret: m[2], cloud_name: m[3] });
+    console.log("Cloudinary: configured for cloud", m[3]);
+  } else {
+    console.warn("Cloudinary: CLOUDINARY_URL missing or invalid");
+  }
+})();
 
 // ─── Multer: store in memory, controllers upload buffer to Cloudinary ─────────
 // Using memoryStorage avoids the multer-storage-cloudinary v4 ↔ cloudinary v2
@@ -78,6 +85,7 @@ app.get("/file",      (req, res) => res.sendFile(getPath("app/files.html")));
 app.post("/api/signup", signUpController);
 app.post("/api/login",  loginController);
 app.post("/api/profile-picture", AuthMiddleware, profileUpload.single("profilePic"), updateImageController);
+app.get("/api/profile-picture",  AuthMiddleware, fetchProfilePicture);
 app.post("/api/file",            AuthMiddleware, upload.single("file"),              createFile);
 app.get("/api/file",  AuthMiddleware, fetchFile);
 // NOTE: /api/file/download/:id MUST be registered before /api/file/:id
