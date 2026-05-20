@@ -7,8 +7,12 @@ const jwt        = require('jsonwebtoken');
 const uploadToCloudinary = (buffer, options) =>
   new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
-      if (err) reject(err);
-      else resolve(result);
+      if (err) {
+        console.error("[Cloudinary upload_stream error]", JSON.stringify(err));
+        reject(err);
+      } else {
+        resolve(result);
+      }
     });
     stream.end(buffer);
   });
@@ -76,8 +80,9 @@ const updateImageController = async (req, res) => {
     return res.status(200).json({ image: result.secure_url });
 
   } catch (err) {
-    console.error("[updateImageController] Cloudinary error:", err.message);
-    res.status(500).json({ message: err.message });
+    const msg = err?.message || err?.error?.message || JSON.stringify(err) || "Unknown Cloudinary error";
+    console.error("[updateImageController] Cloudinary error:", msg);
+    res.status(500).json({ message: msg });
   }
 };
 

@@ -8,13 +8,15 @@ const getType = (mimetype) => {
 };
 
 // ─── Cloudinary upload helper (buffer → cloud) ────────────────────────────────
-// multer.memoryStorage() puts the file in req.file.buffer.
-// We stream that buffer directly to Cloudinary — no disk involved.
 const uploadToCloudinary = (buffer, options) =>
   new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
-      if (err) reject(err);
-      else resolve(result);
+      if (err) {
+        console.error("[Cloudinary upload_stream error]", JSON.stringify(err));
+        reject(err);
+      } else {
+        resolve(result);
+      }
     });
     stream.end(buffer);
   });
@@ -34,6 +36,8 @@ const createFile = async (req, res) => {
     }
 
     // Upload buffer to Cloudinary
+    const cfg = cloudinary.config();
+    console.log("[createFile] Cloudinary cloud_name:", cfg.cloud_name || "NOT SET");
     const result = await uploadToCloudinary(file.buffer, {
       folder:        "filemoon",
       resource_type: "auto",     // handles any file type
@@ -53,8 +57,9 @@ const createFile = async (req, res) => {
     res.status(201).json(newFile);
 
   } catch (err) {
-    console.error("[createFile] Cloudinary error:", err.message, err.http_code || "");
-    res.status(500).json({ message: err.message });
+    const msg = err?.message || err?.error?.message || JSON.stringify(err) || "Unknown Cloudinary error";
+    console.error("[createFile] Cloudinary error:", msg);
+    res.status(500).json({ message: msg });
   }
 };
 
